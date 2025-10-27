@@ -1,29 +1,21 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:appcbm/api/cbm_api.dart';
 import 'package:appcbm/api/cbm_models.dart';
+import 'qr_scanner_page.dart';
 
-class FormularioPage extends StatefulWidget {
+class UrgentFormPage extends StatefulWidget {
   final String token;
   final Map<String, dynamic> me;
-  final String assetId;
-  final Equipment? equipment;
 
-  const FormularioPage({
-    super.key,
-    required this.token,
-    required this.me,
-    required this.assetId,
-    this.equipment,
-  });
+  const UrgentFormPage({super.key, required this.token, required this.me});
 
   @override
-  State<FormularioPage> createState() => _FormularioPageState();
+  State<UrgentFormPage> createState() => _UrgentFormPageState();
 }
 
-class _FormularioPageState extends State<FormularioPage> {
+class _UrgentFormPageState extends State<UrgentFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _salaController = TextEditingController();
   final _equipamentoController = TextEditingController();
@@ -33,29 +25,45 @@ class _FormularioPageState extends State<FormularioPage> {
   bool _isLoading = true;
   XFile? _imageFile;
   final _api = CbmApi();
+  Equipment? _equipment;
+  String? _assetId;
 
   @override
   void initState() {
     super.initState();
-    _carregarDados();
+    // ✅ Aguarda a tela carregar antes de abrir a câmera
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _lerQrCode();
+    });
   }
 
-  Future<void> _carregarDados() async {
-    if (widget.equipment != null) {
-      _preencherComEquip(widget.equipment!);
-      setState(() => _isLoading = false);
+  Future<void> _lerQrCode() async {
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScannerPage()),
+    );
+
+    if (!mounted || code == null || code.trim().isEmpty) {
+      Navigator.pop(context); // se cancelar o scanner, volta
       return;
     }
 
+    _assetId = code.trim();
+    await _carregarDados(_assetId!);
+  }
+
+  Future<void> _carregarDados(String code) async {
     final equip = await _api.getEquipmentByCode(
-      code: widget.assetId,
+      code: code,
       token: widget.token,
     );
+
     if (equip != null) {
       _preencherComEquip(equip);
+      _equipment = equip;
     } else {
       _equipamentoController.text = 'Equipamento não localizado';
-      _numSerieController.text = widget.assetId;
+      _numSerieController.text = code;
       _salaController.text = '';
     }
     setState(() => _isLoading = false);
@@ -73,23 +81,11 @@ class _FormularioPageState extends State<FormularioPage> {
     if (foto != null) setState(() => _imageFile = foto);
   }
 
-  @override
-  void dispose() {
-    _salaController.dispose();
-    _equipamentoController.dispose();
-    _numSerieController.dispose();
-    _obsController.dispose();
-    super.dispose();
-  }
-
-  // ===================================================================
-  // FUNÇÃO DE ENVIO CORRIGIDA
-  // ===================================================================
   Future<void> _enviarChamado() async {
     if (!_formKey.currentState!.validate()) return;
 
     final meId = widget.me['id']?.toString() ?? '';
-    final equipId = widget.equipment?.id?.toString();
+    final equipId = _equipment?.id?.toString();
 
     if (equipId == null || equipId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -99,15 +95,14 @@ class _FormularioPageState extends State<FormularioPage> {
     }
 
     final fields = {
-      'name': 'Chamado via App',
+      'name': 'Chamado Urgente via App',
       'description': _obsController.text.trim(),
-      'suggested_date': DateTime.now()
-          .add(const Duration(days: 3))
-          .toIso8601String(),
-      'urgency_level': 'MEDIUM',
+      'suggested_date': DateTime.now().toIso8601String(),
+      'urgency_level': 'HIGH',
       'creator_FK': meId,
-      'equipments_FK': [equipId], // lista real (corrigido)
-      'responsibles_FK': [meId], // responsável padrão
+      'equipments_FK': [equipId],
+      'responsibles_FK': [meId],
+      'is_urgent': true,
     };
 
     try {
@@ -119,7 +114,10 @@ class _FormularioPageState extends State<FormularioPage> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Chamado criado com sucesso!')),
+        const SnackBar(
+          content: Text('Chamado urgente criado com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -130,9 +128,15 @@ class _FormularioPageState extends State<FormularioPage> {
     }
   }
 
-  // ===================================================================
-  // INTERFACE DO FORMULÁRIO
-  // ===================================================================
+  @override
+  void dispose() {
+    _salaController.dispose();
+    _equipamentoController.dispose();
+    _numSerieController.dispose();
+    _obsController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,21 +165,9 @@ class _FormularioPageState extends State<FormularioPage> {
                         ),
                         const SizedBox(height: 12),
                         _buildTextField(
-                          label: 'Equipamento',
-                          controller: _equipamentoController,
-                          readOnly: true,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildTextField(
-                          label: 'Num - Série',
-                          controller: _numSerieController,
-                          readOnly: true,
-                        ),
-                        const SizedBox(height: 12),
-                        _buildTextField(
-                          label: 'Observações',
+                          label: 'Descreva o problema',
                           controller: _obsController,
-                          hint: 'Descreva o problema',
+                          hint: 'Explique o problema encontrado',
                           maxLines: 3,
                           validator: (v) => (v == null || v.trim().isEmpty)
                               ? 'Por favor, descreva o problema.'
@@ -216,7 +208,7 @@ class _FormularioPageState extends State<FormularioPage> {
                         ElevatedButton(
                           onPressed: _enviarChamado,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF333333),
+                            backgroundColor: Colors.redAccent,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
@@ -224,7 +216,7 @@ class _FormularioPageState extends State<FormularioPage> {
                             ),
                           ),
                           child: const Text(
-                            'CONFIRMAR CHAMADO',
+                            'FINALIZAR CHAMADO',
                             style: TextStyle(fontSize: 16),
                           ),
                         ),

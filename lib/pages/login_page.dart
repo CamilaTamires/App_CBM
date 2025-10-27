@@ -7,7 +7,7 @@ import 'package:appcbm/api/cbm_models.dart';
 // ---------------------------------------------------------------
 // • Faz login no Djoser e envia o token para a Home via arguments.
 // • Mostra erros amigáveis e bloqueia o botão durante requisição.
-// • (Opcional) depois você pode chamar _api.getUsers() com token ativo.
+// • ENTER no campo de senha confirma o login.
 // ===============================================================
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -127,6 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                           TextField(
                             controller: emailController,
                             keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
                               hintText: 'seu.email@exemplo.com',
                               filled: true,
@@ -153,6 +154,9 @@ class _LoginPageState extends State<LoginPage> {
                           TextField(
                             controller: senhaController,
                             obscureText: true,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) =>
+                                _fazerLogin(), // ENTER faz login
                             decoration: InputDecoration(
                               hintText: 'Sua senha',
                               filled: true,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:appcbm/api/cbm_api.dart';
 import 'formulario_page.dart';
 import 'qr_scanner_page.dart';
+import 'urgent_form_page.dart';
+import 'open_tasks_page.dart'; // <<< nova página de chamados abertos
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -36,7 +38,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _abrirChamadoFluxo() async {
-    // 1) Abre o scanner e espera o código
     final code = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const QrScannerPage()),
@@ -45,16 +46,13 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     if (code == null || code.trim().isEmpty) return;
 
-    // 2) Busca equipamento pelo código
     final equip = await _api.getEquipmentByCode(
       code: code.trim(),
       token: _token,
     );
 
-    // 3) Busca dados do usuário logado (já estava carregando)
     final me = await _meFuture;
 
-    // 4) Vai para o form com tudo preenchido
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -62,8 +60,32 @@ class _HomePageState extends State<HomePage> {
           token: _token,
           me: me!,
           assetId: code.trim(),
-          equipment: equip, // se null, o form lida com isso
+          equipment: equip,
         ),
+      ),
+    );
+  }
+
+  Future<void> _abrirChamadoUrgente() async {
+    final me = await _meFuture;
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UrgentFormPage(token: _token, me: me!),
+      ),
+    );
+  }
+
+  Future<void> _abrirChamadosAbertos() async {
+    final me = await _meFuture;
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OpenTasksPage(token: _token, userId: me!['id']),
       ),
     );
   }
@@ -194,11 +216,28 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 15),
                     ElevatedButton.icon(
-                      onPressed: () {},
+                      onPressed: _abrirChamadoUrgente,
                       icon: const Icon(Icons.warning, color: Colors.white),
                       label: const Text('Chamado Urgente'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF333333),
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    ElevatedButton.icon(
+                      onPressed: _abrirChamadosAbertos,
+                      icon: const Icon(Icons.list, color: Colors.white),
+                      label: const Text('Chamados Abertos'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),

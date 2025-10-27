@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'cbm_models.dart';
@@ -9,8 +10,8 @@ import 'cbm_models.dart';
 class CbmApi {
   // Para Web usamos 127.0.0.1; para Android emulator usamos 10.0.2.2
   static final String _host = kIsWeb
-      ? 'http://127.0.0.1:8000'
-      : 'http://10.0.2.2:8000';
+      ? 'http://127.0.0.1:8000/'
+      : 'http://10.0.2.2:8000/';
   static String get _api => '$_host/api';
 
   String? _token; // auth_token do Djoser
@@ -40,15 +41,6 @@ class CbmApi {
       if (_token == null || _token!.isEmpty) {
         throw Exception('Resposta sem auth_token.');
       }
-    } else if (res.statusCode == 400 || res.statusCode == 401) {
-      final body = _safeJson(res.body);
-      final msg =
-          body['detail'] ??
-          (body['non_field_errors'] is List &&
-                  body['non_field_errors'].isNotEmpty
-              ? body['non_field_errors'][0]
-              : 'Credenciais inválidas');
-      throw Exception(msg);
     } else {
       throw Exception('Falha no login (${res.statusCode}).');
     }
@@ -76,7 +68,7 @@ class CbmApi {
     throw Exception('Erro ${res.statusCode} ao buscar /me: ${res.body}');
   }
 
-  // ------------------- Recursos (listas) -------------------
+  // ------------------- Recursos -------------------
   Future<List<CustomUser>> getUsers({String? token}) async {
     final uri = Uri.parse('$_api/custom-user/');
     final res = await http.get(
@@ -108,7 +100,6 @@ class CbmApi {
   }
 
   // ------------------- Recurso (detalhe) -------------------
-  /// Busca um equipamento pelo ID no endpoint de detalhe: /api/equipment/<id>/
   Future<Equipment?> getEquipmentById({
     required int id,
     required String token,
@@ -118,7 +109,6 @@ class CbmApi {
       uri,
       headers: _headers(auth: true, token: token),
     );
-
     if (res.statusCode == 200) {
       final map =
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
@@ -130,24 +120,16 @@ class CbmApi {
     );
   }
 
-  /// Busca equipamento a partir do conteúdo do QR.
-  /// 1) Tenta extrair um ID (número, URL com /equipment/<id>/, ou JSON {"id":...})
-  ///    e chamar /api/equipment/<id>/.
-  /// 2) Se não achar por ID, tenta /api/equipment/?search=<code>.
-  /// 3) Se ainda não, tenta /api/equipment/?code=<code>.
   Future<Equipment?> getEquipmentByCode({
     required String code,
     required String token,
   }) async {
-    // 1) tentar extrair ID do QR
     final id = _extractIdFromQr(code);
     if (id != null) {
       final byId = await getEquipmentById(id: id, token: token);
       if (byId != null) return byId;
-      // se não achou por id, continua para tentativas por lista
     }
 
-    // 2) tentar lista com ?search=
     var uri = Uri.parse('$_api/equipment/?search=$code');
     var res = await http.get(uri, headers: _headers(auth: true, token: token));
     if (res.statusCode == 200) {
@@ -157,7 +139,6 @@ class CbmApi {
       }
     }
 
-    // 3) tentar lista com ?code=
     uri = Uri.parse('$_api/equipment/?code=$code');
     res = await http.get(uri, headers: _headers(auth: true, token: token));
     if (res.statusCode == 200) {
@@ -166,64 +147,79 @@ class CbmApi {
         return Equipment.fromJson(list.first);
       }
     }
-
     return null;
   }
 
+  // ------------------- CREATE TASK (com imagem opcional) -------------------
   Future<void> createTask(
-    Map<String, dynamic> taskData, {
+    Map<String, dynamic> fields, {
+    File? imageFile,
     required String token,
   }) async {
     final uri = Uri.parse('$_api/task/');
-    final res = await http.post(
-      uri,
-      headers: _headers(auth: true, token: token),
-      body: jsonEncode(taskData),
-    );
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers(auth: true, token: token));
+
+    // Adiciona campos, incluindo listas
+    fields.forEach((key, value) {
+      if (value is List) {
+        for (var item in value) {
+          request.fields['$key'] = item.toString();
+        }
+      } else {
+        request.fields[key] = value.toString();
+      }
+    });
+
+    if (imageFile != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath('photo', imageFile.path),
+      );
+    }
+
+    final res = await request.send();
+    final body = await res.stream.bytesToString();
 
     if (res.statusCode != 201) {
-      throw Exception('Erro ao criar tarefa (${res.statusCode}): ${res.body}');
+      throw Exception('Erro ao criar tarefa (${res.statusCode}): $body');
     }
   }
 
+  // ------------------- GET OPEN TASKS -------------------
+  Future<List<Map<String, dynamic>>> getOpenTasks({
+    required String token,
+    required int userId,
+  }) async {
+    // Ajuste aqui o filtro conforme o backend (por ex: status=open, done, etc)
+    final uri = Uri.parse('$_api/task/?creator_FK=$userId');
+    final res = await http.get(
+      uri,
+      headers: _headers(auth: true, token: token),
+    );
+
+    if (res.statusCode == 200) {
+      final list = jsonDecode(utf8.decode(res.bodyBytes));
+      if (list is List) {
+        return List<Map<String, dynamic>>.from(list);
+      }
+    }
+    throw Exception('Erro ao buscar chamados abertos (${res.statusCode})');
+  }
+
   // ------------------- Helpers -------------------
-  /// Tenta extrair um inteiro do conteúdo do QR:
-  /// - "3"
-  /// - "http://.../api/equipment/3/"  -> pega 3
-  /// - '{"id":3,"name":"..."}'        -> pega 3
   int? _extractIdFromQr(String raw) {
     final s = raw.trim();
+    if (RegExp(r'^\d+$').hasMatch(s)) return int.tryParse(s);
 
-    // a) só dígitos
-    final onlyDigits = RegExp(r'^\d+$');
-    if (onlyDigits.hasMatch(s)) {
-      return int.tryParse(s);
-    }
-
-    // b) URL com /equipment/<id>/
     final urlId = RegExp(r'/equipment/(\d+)/?$').firstMatch(s);
-    if (urlId != null) {
-      return int.tryParse(urlId.group(1)!);
-    }
+    if (urlId != null) return int.tryParse(urlId.group(1)!);
 
-    // c) JSON com {"id": <num>}
     try {
       final dynamic parsed = jsonDecode(s);
       if (parsed is Map && parsed['id'] != null) {
         return int.tryParse(parsed['id'].toString());
       }
-    } catch (_) {
-      // não é JSON válido, segue o fluxo
-    }
-
+    } catch (_) {}
     return null;
-  }
-
-  Map<String, dynamic> _safeJson(String body) {
-    try {
-      return jsonDecode(body) as Map<String, dynamic>;
-    } catch (_) {
-      return {};
-    }
   }
 }
