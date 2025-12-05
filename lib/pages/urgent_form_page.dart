@@ -95,7 +95,7 @@ class _UrgentFormPageState extends State<UrgentFormPage> {
     }
 
     final fields = {
-      'name': 'Chamado Urgente via App',
+      'name': 'Chamado Urgente na ${_salaController.text}',
       'description': _obsController.text.trim(),
       'suggested_date': DateTime.now().toIso8601String(),
       'urgency_level': 'HIGH',
