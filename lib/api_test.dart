@@ -14,10 +14,7 @@ class CustomUser {
 
   // Factory constructor para criar um CustomUser a partir de um JSON
   factory CustomUser.fromJson(Map<String, dynamic> json) {
-    return CustomUser(
-      id: json['id'],
-      username: json['name'],
-    );
+    return CustomUser(id: json['id'], username: json['name']);
   }
 
   @override
@@ -48,7 +45,7 @@ class Equipment {
 // ===================================================================
 
 class ApiService {
-  // ❗ ATENÇÃO: Use a URL base correta para o seu ambiente.
+  //  Use a URL base correta para o seu ambiente.
   final String _baseUrl = 'http://10.109.83.12:8000/api';
 
   /// Busca a lista de usuários da API.
@@ -122,7 +119,8 @@ void main() async {
 
     if (users.isEmpty || equipments.isEmpty) {
       print(
-          "\n⚠️ Atenção: Não foi possível encontrar usuários ou equipamentos na API. Verifique se há dados cadastrados no seu Django.");
+        "\n⚠️ Atenção: Não foi possível encontrar usuários ou equipamentos na API. Verifique se há dados cadastrados no seu Django.",
+      );
       return;
     }
 
@@ -134,10 +132,12 @@ void main() async {
     print("\nSimulando seleção de dados para a nova tarefa...");
 
     final creator = users.first; // O primeiro usuário da lista será o criador
-    final responsibles =
-        users.take(2).toList(); // Os dois primeiros serão os responsáveis
-    final selectedEquipments =
-        equipments.take(1).toList(); // O primeiro equipamento será selecionado
+    final responsibles = users
+        .take(2)
+        .toList(); // Os dois primeiros serão os responsáveis
+    final selectedEquipments = equipments
+        .take(1)
+        .toList(); // O primeiro equipamento será selecionado
 
     // Extrai apenas os IDs, que é o que a API espera
     final creatorId = creator.id;
@@ -149,8 +149,9 @@ void main() async {
       'name': 'Tarefa criada via Flutter',
       'description':
           'Esta é uma tarefa de teste gerada automaticamente pelo script Dart.',
-      'suggested_date':
-          DateTime.now().add(const Duration(days: 5)).toIso8601String(),
+      'suggested_date': DateTime.now()
+          .add(const Duration(days: 5))
+          .toIso8601String(),
       'urgency_level': 'MEDIUM',
       'creator_FK': creatorId,
       'equipments_FK': equipmentIds,

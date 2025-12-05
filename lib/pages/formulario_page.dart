@@ -82,9 +82,6 @@ class _FormularioPageState extends State<FormularioPage> {
     super.dispose();
   }
 
-  // ===================================================================
-  // FUNÇÃO DE ENVIO CORRIGIDA
-  // ===================================================================
   Future<void> _enviarChamado() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -106,8 +103,8 @@ class _FormularioPageState extends State<FormularioPage> {
           .toIso8601String(),
       'urgency_level': 'MEDIUM',
       'creator_FK': meId,
-      'equipments_FK': [equipId], // lista real (corrigido)
-      'responsibles_FK': [meId], // responsável padrão
+      'equipments_FK': [equipId],
+      'responsibles_FK': [meId],
     };
 
     try {
@@ -130,9 +127,6 @@ class _FormularioPageState extends State<FormularioPage> {
     }
   }
 
-  // ===================================================================
-  // INTERFACE DO FORMULÁRIO
-  // ===================================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,7 +147,77 @@ class _FormularioPageState extends State<FormularioPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 16),
+                        // ===== CABEÇALHO (BALÃO E ROBÔ NO LADO DIREITO) =====
+                        SizedBox(
+                          height: 140,
+                          child: LayoutBuilder(
+                            builder: (context, c) {
+                              final w = c.maxWidth;
+                              final bubbleW = w.clamp(260, 360) * 0.58;
+                              final robotW = 82.0;
+
+                              return Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // Balão espelhado (lado direito e acima do robô)
+                                  Positioned(
+                                    top: -50,
+                                    right: robotW - 8,
+                                    child: SizedBox(
+                                      width: bubbleW,
+                                      child: Transform(
+                                        alignment: Alignment.center,
+                                        transform: Matrix4.rotationY(
+                                          3.1416,
+                                        ), // espelha
+                                        child: Image.asset(
+                                          'assets/balaoHome.png',
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Texto dentro do balão
+                                  Positioned(
+                                    top: 28,
+                                    right: robotW + 30,
+                                    left: 30,
+                                    child: const Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        'Confirme os Dados',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Robô mais abaixo (lado direito)
+                                  Positioned(
+                                    top: 46,
+                                    right: -20,
+                                    child: SizedBox(
+                                      width: robotW,
+                                      child: Image.asset(
+                                        'assets/roboForms.png',
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ==================== CAMPOS ====================
                         _buildTextField(
                           label: 'Sala',
                           controller: _salaController,
@@ -182,6 +246,8 @@ class _FormularioPageState extends State<FormularioPage> {
                               : null,
                         ),
                         const SizedBox(height: 16),
+
+                        // ==================== FOTO ANEXADA ====================
                         if (_imageFile != null) ...[
                           const Text(
                             'Foto Anexada:',
@@ -201,6 +267,8 @@ class _FormularioPageState extends State<FormularioPage> {
                           ),
                           const SizedBox(height: 16),
                         ],
+
+                        // ==================== BOTÕES ====================
                         OutlinedButton.icon(
                           onPressed: _tirarFoto,
                           icon: const Icon(

@@ -19,24 +19,23 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
+
+      /// 🔥 Agora SIM: o app começa no LOGIN
       initialRoute: '/login',
+
       routes: {
-        // segue igual ao seu — perfeito
         '/login': (_) => const LoginPage(),
         '/home': (_) => const HomePage(),
       },
 
-      // OPCIONAL: trata rotas com argumentos de forma segura
       onGenerateRoute: (settings) {
         switch (settings.name) {
           case '/login':
             return MaterialPageRoute(builder: (_) => const LoginPage());
           case '/home':
-            // args esperados: {'token': String}
             return MaterialPageRoute(
               builder: (_) => const HomePage(),
-              settings:
-                  settings, // mantém os arguments para a Home ler via ModalRoute
+              settings: settings,
             );
           default:
             return MaterialPageRoute(

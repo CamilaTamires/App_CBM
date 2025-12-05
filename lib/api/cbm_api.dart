@@ -9,9 +9,7 @@ import 'cbm_models.dart';
 // ===============================================================
 class CbmApi {
   // Para Web usamos 127.0.0.1; para Android emulator usamos 10.0.2.2
-  static final String _host = kIsWeb
-      ? 'http://127.0.0.1:8000/'
-      : 'http://10.0.2.2:8000/';
+  static const String _host = 'http://localhost:8000';
   static String get _api => '$_host/api';
 
   String? _token; // auth_token do Djoser
@@ -190,7 +188,6 @@ class CbmApi {
     required String token,
     required int userId,
   }) async {
-    // Ajuste aqui o filtro conforme o backend (por ex: status=open, done, etc)
     final uri = Uri.parse('$_api/task/?creator_FK=$userId');
     final res = await http.get(
       uri,
@@ -200,7 +197,29 @@ class CbmApi {
     if (res.statusCode == 200) {
       final list = jsonDecode(utf8.decode(res.bodyBytes));
       if (list is List) {
-        return List<Map<String, dynamic>>.from(list);
+        return list
+            .where((task) {
+              // Verifica se foi criado pelo usuário logado
+              final creator = task['creator_FK'];
+              if (creator == null || creator['id'] != userId) return false;
+
+              // Pega o último status, se existir
+              final history = task['status_history'] as List?;
+              if (history == null || history.isEmpty) {
+                // Se não tiver histórico, ainda está aberto
+                return true;
+              }
+
+              final lastStatus =
+                  history.last['status']?.toString().toUpperCase() ?? '';
+              // Filtra apenas os que NÃO estão fechados
+              return lastStatus != 'CLOSED' &&
+                  lastStatus != 'FINALIZED' &&
+                  lastStatus != 'DONE' &&
+                  lastStatus != 'CONCLUDED';
+            })
+            .cast<Map<String, dynamic>>()
+            .toList();
       }
     }
     throw Exception('Erro ao buscar chamados abertos (${res.statusCode})');
